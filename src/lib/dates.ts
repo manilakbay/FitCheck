@@ -31,3 +31,18 @@ export function formatDayLabel(dateIso: string): string {
 export function formatLongDate(dateIso: string): string {
   return format(parseISO(dateIso), "EEEE, MMMM d, yyyy");
 }
+
+/**
+ * Human-friendly day label: "Today" / "Yesterday" / "Mon" (this week) / "Mmm d".
+ */
+export function relativeDay(dateIso: string, today: string = todayIso()): string {
+  if (dateIso === today) return "Today";
+  const yesterday = format(subDays(parseISO(today), 1), "yyyy-MM-dd");
+  if (dateIso === yesterday) return "Yesterday";
+  const entry = parseISO(dateIso);
+  const daysAgo = Math.round(
+    (parseISO(today).getTime() - entry.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (daysAgo > 0 && daysAgo < 7) return format(entry, "EEEE");
+  return format(entry, "MMM d");
+}
