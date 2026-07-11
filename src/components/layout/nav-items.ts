@@ -2,6 +2,7 @@ import {
   Activity,
   LayoutDashboard,
   Salad,
+  Settings,
   UserCircle2,
   type LucideIcon,
 } from "lucide-react";
@@ -17,4 +18,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Nutrition", href: "/nutrition", icon: Salad },
   { label: "Activity", href: "/activity", icon: Activity },
   { label: "Profile", href: "/profile", icon: UserCircle2 },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
