@@ -1,21 +1,31 @@
-import Link from "next/link";
-import { Activity, Flame, Scale, Target, TrendingUp } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/ui/stat-card";
-import { PageHeader } from "@/components/layout/page-header";
 import { ChartShell } from "@/components/charts/chart-shell";
 import { CalorieIntakeChart } from "@/components/charts/calorie-intake-chart";
 import { CaloriesBurnedChart } from "@/components/charts/calories-burned-chart";
 import { ProteinTrendChart } from "@/components/charts/protein-trend-chart";
 import { WeightTrendChart } from "@/components/charts/weight-trend-chart";
-import { MacroProgress } from "@/features/dashboard/macro-progress";
+import { HeroCard } from "@/features/dashboard/hero-card";
+import { MacroBreakdown } from "@/features/dashboard/macro-breakdown";
+import { QuickActions } from "@/features/dashboard/quick-actions";
 import { RecentActivities, RecentMeals } from "@/features/dashboard/recent-lists";
+import { SummaryStrip } from "@/features/dashboard/summary-strip";
+import { WeeklyMomentum } from "@/features/dashboard/weekly-momentum";
 import { loadDashboardData, sumFoodTotals } from "@/features/dashboard/queries";
 import { requireUser } from "@/lib/supabase/auth";
-import { formatKcal, formatKg, formatNumber } from "@/lib/format";
+import { formatKg } from "@/lib/format";
 
 export const metadata = { title: "Dashboard" };
+
+function extractDisplayName(fullName: string | null | undefined, email: string | undefined) {
+  if (fullName && fullName.trim().length > 0) {
+    const first = fullName.trim().split(/\s+/)[0];
+    if (first) return first;
+  }
+  if (email) {
+    const local = email.split("@")[0] ?? "";
+    if (local.length > 0) return local.charAt(0).toUpperCase() + local.slice(1);
+  }
+  return "friend";
+}
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -26,108 +36,112 @@ export default async function DashboardPage() {
     (sum, entry) => sum + Number(entry.calories_burned),
     0,
   );
+  const todaysMinutes = data.todaysActivity.reduce(
+    (sum, entry) => sum + Number(entry.duration_min),
+    0,
+  );
   const net = totals.calories - todaysBurn;
+
   const goalTarget = data.goal ? Number(data.goal.calorie_target) : null;
   const proteinTarget = data.goal ? Number(data.goal.protein_target_g) : null;
 
+  const yesterdayIndex = data.caloriesInSeries.length - 2;
+  const yesterdayCaloriesIn =
+    yesterdayIndex >= 0 ? data.caloriesInSeries[yesterdayIndex]?.calories ?? 0 : 0;
+  const yesterdayCaloriesOut =
+    yesterdayIndex >= 0 ? data.caloriesOutSeries[yesterdayIndex]?.calories ?? 0 : 0;
+
+  const displayName = extractDisplayName(data.profile?.full_name, user.email ?? undefined);
+
+  const weightPointsRecorded = data.weightSeries.filter((p) => p.weight_kg != null).length;
+  const latestWeightKg = data.latestWeight
+    ? Number(data.latestWeight.weight_kg)
+    : data.profile?.weight_kg
+      ? Number(data.profile.weight_kg)
+      : null;
+
   return (
-    <>
-      <PageHeader
-        title="Dashboard"
-        description="Your daily nutrition and activity at a glance."
-        actions={
-          <>
-            <Link href="/nutrition/new">
-              <Button size="sm">Add meal</Button>
-            </Link>
-            <Link href="/activity/new">
-              <Button size="sm" variant="secondary">
-                Add activity
-              </Button>
-            </Link>
-          </>
-        }
+    <div className="flex flex-col gap-6">
+      <HeroCard
+        displayName={displayName}
+        today={data.today}
+        caloriesIn={totals.calories}
+        caloriesOut={todaysBurn}
+        calorieTarget={goalTarget}
+        proteinIn={totals.protein_g}
+        proteinTarget={proteinTarget}
+        activityMinutes={todaysMinutes}
+        activityMinutesTarget={30}
       />
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Calories consumed"
-          value={formatKcal(totals.calories)}
-          hint={goalTarget ? `Target ${formatKcal(goalTarget)}` : "Set a target in your profile"}
-          icon={Flame}
-          tone="brand"
-        />
-        <StatCard
-          label="Calories burned"
-          value={formatKcal(todaysBurn)}
-          hint={`${data.todaysActivity.length} activit${
-            data.todaysActivity.length === 1 ? "y" : "ies"
-          } today`}
-          icon={Activity}
-          tone="accent"
-        />
-        <StatCard
-          label="Net calories"
-          value={formatKcal(net)}
-          hint={
-            goalTarget
-              ? net < goalTarget
-                ? `Under target by ${formatKcal(goalTarget - net)}`
-                : `Over target by ${formatKcal(net - goalTarget)}`
-              : "Log meals & activity to see progress"
-          }
-          icon={Target}
-          tone={goalTarget && net > goalTarget ? "warn" : "slate"}
-        />
-        <StatCard
-          label="Current weight"
-          value={
-            data.latestWeight
-              ? formatKg(Number(data.latestWeight.weight_kg))
-              : data.profile?.weight_kg
-                ? formatKg(Number(data.profile.weight_kg))
-                : "—"
-          }
-          hint={
-            data.goal?.goal_weight_kg
-              ? `Goal ${formatKg(Number(data.goal.goal_weight_kg))}`
-              : "Set a goal weight in your profile"
-          }
-          icon={Scale}
-          tone="slate"
-        />
-      </section>
+      <QuickActions />
+
+      <SummaryStrip
+        caloriesIn={totals.calories}
+        caloriesOut={todaysBurn}
+        net={net}
+        calorieTarget={goalTarget}
+        yesterdayCaloriesIn={yesterdayCaloriesIn}
+        yesterdayCaloriesOut={yesterdayCaloriesOut}
+      />
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <MacroProgress totals={totals} goal={data.goal} />
+          <MacroBreakdown totals={totals} goal={data.goal} />
         </div>
-        <StatCard
-          label="14-day protein avg"
-          value={
-            formatNumber(
-              data.proteinSeries.reduce((sum, p) => sum + p.protein_g, 0) /
-                Math.max(data.proteinSeries.length, 1),
-            ) + " g"
-          }
-          hint={proteinTarget ? `Target ${Math.round(proteinTarget)} g` : undefined}
-          icon={TrendingUp}
-          tone="accent"
-          className="h-full"
+        <WeeklyMomentum
+          caloriesInSeries={data.caloriesInSeries}
+          caloriesOutSeries={data.caloriesOutSeries}
+          calorieTarget={goalTarget}
         />
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartShell title="Daily calorie intake" description="Last 14 days">
+        <ChartShell
+          title="Daily calorie intake"
+          description="Last 14 days"
+          emptyMessage={
+            data.caloriesInSeries.every((p) => p.calories === 0)
+              ? "Log meals to see your intake trend."
+              : null
+          }
+        >
           <CalorieIntakeChart data={data.caloriesInSeries} target={goalTarget} />
         </ChartShell>
-        <ChartShell title="Daily calories burned" description="Last 14 days">
+        <ChartShell
+          title="Daily calories burned"
+          description="Last 14 days"
+          emptyMessage={
+            data.caloriesOutSeries.every((p) => p.calories === 0)
+              ? "Log workouts to see your burn trend."
+              : null
+          }
+        >
           <CaloriesBurnedChart data={data.caloriesOutSeries} />
         </ChartShell>
-        <ChartShell title="Weight trend" description="Last 14 days">
+        <ChartShell
+          title="Weight trend"
+          description="Last 14 days"
+          headline={latestWeightKg != null ? formatKg(latestWeightKg) : "—"}
+          emptyMessage={
+            weightPointsRecorded < 2
+              ? weightPointsRecorded === 1
+                ? "Log another weight entry to see your trend."
+                : "Add your weight to start tracking your trend."
+              : null
+          }
+        >
           <WeightTrendChart data={data.weightSeries} />
         </ChartShell>
-        <ChartShell title="Protein intake" description="Last 14 days">
+        <ChartShell
+          title="Protein intake"
+          description="Last 14 days"
+          emptyMessage={
+            data.proteinSeries.every((p) => p.protein_g === 0)
+              ? "Log meals to see your protein trend."
+              : null
+          }
+        >
           <ProteinTrendChart data={data.proteinSeries} target={proteinTarget} />
         </ChartShell>
       </section>
@@ -136,6 +150,6 @@ export default async function DashboardPage() {
         <RecentMeals entries={data.recentFood} />
         <RecentActivities entries={data.recentActivity} />
       </section>
-    </>
+    </div>
   );
 }
