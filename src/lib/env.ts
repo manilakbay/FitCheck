@@ -8,6 +8,21 @@ const publicSchema = z.object({
 
 const serverSchema = publicSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  /**
+   * 32 raw bytes (44 base64 chars) used to AES-256-GCM encrypt per-user
+   * AI provider API keys before they hit the database. Never expose to
+   * the browser. Set with:  openssl rand -base64 32
+   */
+  AI_ENCRYPTION_KEY: z
+    .string()
+    .refine((value) => {
+      try {
+        return Buffer.from(value, "base64").length === 32;
+      } catch {
+        return false;
+      }
+    }, "AI_ENCRYPTION_KEY must be 32 raw bytes encoded as base64 (44 chars).")
+    .optional(),
 });
 
 const rawPublic = {
@@ -19,6 +34,7 @@ const rawPublic = {
 const rawServer = {
   ...rawPublic,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  AI_ENCRYPTION_KEY: process.env.AI_ENCRYPTION_KEY,
 };
 
 function parseOrPlaceholders<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
@@ -36,6 +52,7 @@ function parseOrPlaceholders<T extends z.ZodTypeAny>(schema: T, raw: unknown): z
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
       SUPABASE_SERVICE_ROLE_KEY: undefined,
+      AI_ENCRYPTION_KEY: Buffer.alloc(32).toString("base64"),
     });
   }
 
