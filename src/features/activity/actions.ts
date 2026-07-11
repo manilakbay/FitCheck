@@ -62,11 +62,15 @@ export async function createActivityAction(
     .eq("id", user.id)
     .maybeSingle();
 
+  const distanceKm =
+    typeof parsed.data.distanceKm === "number" ? parsed.data.distanceKm : null;
+
   const caloriesBurned = estimateCaloriesBurned({
     activityType: parsed.data.activityType,
     intensity: parsed.data.intensity,
     durationMin: parsed.data.durationMin,
     weightKg: profile?.weight_kg ? Number(profile.weight_kg) : null,
+    distanceKm,
   });
 
   const { error } = await supabase.from("activity_entries").insert({
@@ -74,8 +78,7 @@ export async function createActivityAction(
     entry_date: parsed.data.entryDate,
     activity_type: parsed.data.activityType,
     duration_min: parsed.data.durationMin,
-    distance_km:
-      typeof parsed.data.distanceKm === "number" ? parsed.data.distanceKm : null,
+    distance_km: distanceKm,
     intensity: parsed.data.intensity,
     calories_burned: caloriesBurned,
   });
