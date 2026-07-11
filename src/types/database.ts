@@ -3,6 +3,7 @@ import type {
   DailyGoal,
   FoodEntry,
   Profile,
+  UserAiSettings,
   WeightRecord,
 } from "@/types/models";
 
@@ -25,7 +26,16 @@ type FoodEntryInsert = Partial<Pick<FoodEntry, "id" | "entry_date" | TimestampFi
     "user_id" | "meal_type" | "food_name" | "quantity" | "unit"
   > &
   Partial<
-    Pick<FoodEntry, "calories" | "protein_g" | "carbs_g" | "fat_g" | "entry_date">
+    Pick<
+      FoodEntry,
+      | "calories"
+      | "protein_g"
+      | "carbs_g"
+      | "fat_g"
+      | "entry_date"
+      | "source"
+      | "ai_confidence"
+    >
   >;
 
 type FoodEntryUpdate = Partial<Omit<FoodEntry, "id" | "user_id" | "created_at">>;
@@ -35,9 +45,20 @@ type ActivityEntryInsert = Partial<Pick<ActivityEntry, "id" | "entry_date" | Tim
     ActivityEntry,
     "user_id" | "activity_type" | "duration_min" | "intensity"
   > &
-  Partial<Pick<ActivityEntry, "distance_km" | "calories_burned" | "entry_date">>;
+  Partial<
+    Pick<
+      ActivityEntry,
+      "distance_km" | "calories_burned" | "entry_date" | "source" | "ai_confidence"
+    >
+  >;
 
 type ActivityEntryUpdate = Partial<Omit<ActivityEntry, "id" | "user_id" | "created_at">>;
+
+type UserAiSettingsInsert = Partial<Pick<UserAiSettings, TimestampFields>> &
+  Pick<UserAiSettings, "user_id"> &
+  Partial<Omit<UserAiSettings, "user_id" | TimestampFields>>;
+
+type UserAiSettingsUpdate = Partial<Omit<UserAiSettings, "user_id" | "created_at">>;
 
 type DailyGoalInsert = Partial<Pick<DailyGoal, TimestampFields>> &
   Pick<DailyGoal, "user_id"> &
@@ -85,6 +106,12 @@ export type Database = {
         Row: DailyGoal;
         Insert: DailyGoalInsert;
         Update: DailyGoalUpdate;
+        Relationships: [];
+      };
+      user_ai_settings: {
+        Row: UserAiSettings;
+        Insert: UserAiSettingsInsert;
+        Update: UserAiSettingsUpdate;
         Relationships: [];
       };
     };
