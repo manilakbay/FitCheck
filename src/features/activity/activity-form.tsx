@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { AuthSubmitButton } from "@/features/auth/submit-button";
 import { createActivityAction, type ActivityFormState } from "@/features/activity/actions";
 import { ACTIVITY_TYPES, INTENSITIES } from "@/lib/constants";
-import { estimateCaloriesBurned } from "@/services/activity/calories";
+import { estimateCaloriesBurnedDetailed } from "@/services/activity/calories";
 import type { ActivityType, Intensity } from "@/types/models";
 
 const initialState: ActivityFormState = {};
@@ -25,16 +25,18 @@ export function ActivityForm({
   const [activityType, setActivityType] = useState<ActivityType>("walking");
   const [intensity, setIntensity] = useState<Intensity>("moderate");
   const [durationMin, setDurationMin] = useState<number>(30);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
-  const estimatedCalories = useMemo(
+  const estimate = useMemo(
     () =>
-      estimateCaloriesBurned({
+      estimateCaloriesBurnedDetailed({
         activityType,
         intensity,
         durationMin: Number.isFinite(durationMin) ? durationMin : 0,
         weightKg: userWeightKg,
+        distanceKm,
       }),
-    [activityType, intensity, durationMin, userWeightKg],
+    [activityType, intensity, durationMin, userWeightKg, distanceKm],
   );
 
   return (
@@ -97,18 +99,40 @@ export function ActivityForm({
       <FormField
         label="Distance (km)"
         htmlFor="distanceKm"
-        hint="Optional — great for walking, running, cycling and swimming."
+        hint="Optional — refines the estimate for walking, running, cycling and swimming."
         className="md:col-span-2"
       >
-        <Input id="distanceKm" name="distanceKm" type="number" min={0} step="0.01" />
+        <Input
+          id="distanceKm"
+          name="distanceKm"
+          type="number"
+          min={0}
+          step="0.01"
+          value={distanceKm ?? ""}
+          onChange={(event) => {
+            const raw = event.target.value;
+            setDistanceKm(raw === "" ? null : Number(raw));
+          }}
+        />
       </FormField>
 
       <div className="md:col-span-2 rounded-lg border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">
         Estimated calories burned:{" "}
-        <span className="font-semibold">{Math.round(estimatedCalories)} kcal</span>
+        <span className="font-semibold">{Math.round(estimate.calories)} kcal</span>
+        {estimate.method === "pace" && estimate.speedKmh != null ? (
+          <p className="mt-1 text-xs text-brand-700">
+            Refined from your pace ({estimate.speedKmh.toFixed(1)} km/h · MET {estimate.met}).
+          </p>
+        ) : null}
         {userWeightKg == null ? (
           <p className="mt-1 text-xs text-brand-700">
             Using a 70kg default. Add your weight in your profile for a personalised estimate.
+          </p>
+        ) : null}
+        {estimate.speedImplausible && estimate.speedKmh != null ? (
+          <p className="mt-2 text-xs font-medium text-amber-700">
+            Heads up — {estimate.speedKmh.toFixed(1)} km/h looks unusually fast for{" "}
+            {activityType.replace("_", " ")}. Double-check the distance or duration.
           </p>
         ) : null}
       </div>
