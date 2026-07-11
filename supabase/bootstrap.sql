@@ -1,17 +1,13 @@
--- FitTrack AI — combined bootstrap SQL.
+-- FitTrack AI — one-shot bootstrap SQL.
 -- Paste the entire contents of this file into the Supabase SQL editor and click Run.
--- Safe to re-run (uses IF NOT EXISTS / DROP IF EXISTS / OR REPLACE).
-
+-- Idempotent: safe to re-run any time (uses IF NOT EXISTS / DROP IF EXISTS / OR REPLACE).
 
 -- =====================================================================
--- Source: 20260711000001_init_shared.sql
+-- Section 1 — Shared helpers
 -- =====================================================================
-
--- Shared helpers used by all subsequent migrations.
 
 create extension if not exists "pgcrypto";
 
--- Trigger function that keeps updated_at in sync on every row change.
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -23,11 +19,8 @@ end;
 $$;
 
 -- =====================================================================
--- Source: 20260711000002_profiles.sql
+-- Section 2 — profiles table (1:1 with auth.users)
 -- =====================================================================
-
--- profiles: 1:1 with auth.users. Stores personal / physiological details
--- used to compute BMR, TDEE, and daily calorie targets.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -48,11 +41,11 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
   before update on public.profiles
   for each row execute function public.set_updated_at();
 
--- Seed a profile row automatically when a user signs up.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -72,7 +65,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Row Level Security: users can only read / modify their own profile.
 alter table public.profiles enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -97,10 +89,8 @@ create policy "profiles_delete_own"
   using (auth.uid() = id);
 
 -- =====================================================================
--- Source: 20260711000003_weight_records.sql
+-- Section 3 — weight_records table
 -- =====================================================================
-
--- weight_records: append-only log of the user's measured body weight.
 
 create table if not exists public.weight_records (
   id uuid primary key default gen_random_uuid(),
@@ -115,6 +105,7 @@ create table if not exists public.weight_records (
 create index if not exists weight_records_user_recorded_idx
   on public.weight_records (user_id, recorded_on desc);
 
+drop trigger if exists weight_records_set_updated_at on public.weight_records;
 create trigger weight_records_set_updated_at
   before update on public.weight_records
   for each row execute function public.set_updated_at();
@@ -143,10 +134,8 @@ create policy "weight_records_delete_own"
   using (auth.uid() = user_id);
 
 -- =====================================================================
--- Source: 20260711000004_food_entries.sql
+-- Section 4 — food_entries table
 -- =====================================================================
-
--- food_entries: one row per logged food / drink item.
 
 create table if not exists public.food_entries (
   id uuid primary key default gen_random_uuid(),
@@ -167,6 +156,7 @@ create table if not exists public.food_entries (
 create index if not exists food_entries_user_date_idx
   on public.food_entries (user_id, entry_date desc);
 
+drop trigger if exists food_entries_set_updated_at on public.food_entries;
 create trigger food_entries_set_updated_at
   before update on public.food_entries
   for each row execute function public.set_updated_at();
@@ -195,10 +185,8 @@ create policy "food_entries_delete_own"
   using (auth.uid() = user_id);
 
 -- =====================================================================
--- Source: 20260711000005_activity_entries.sql
+-- Section 5 — activity_entries table
 -- =====================================================================
-
--- activity_entries: one row per logged workout / physical activity.
 
 create table if not exists public.activity_entries (
   id uuid primary key default gen_random_uuid(),
@@ -220,6 +208,7 @@ create table if not exists public.activity_entries (
 create index if not exists activity_entries_user_date_idx
   on public.activity_entries (user_id, entry_date desc);
 
+drop trigger if exists activity_entries_set_updated_at on public.activity_entries;
 create trigger activity_entries_set_updated_at
   before update on public.activity_entries
   for each row execute function public.set_updated_at();
@@ -248,12 +237,8 @@ create policy "activity_entries_delete_own"
   using (auth.uid() = user_id);
 
 -- =====================================================================
--- Source: 20260711000006_daily_goals.sql
+-- Section 6 — daily_goals table
 -- =====================================================================
-
--- daily_goals: exactly one row per user, upserted whenever the profile is
--- recalculated. Captures the calorie & macro targets for the day and the
--- (optional) longer-term goal weight.
 
 create table if not exists public.daily_goals (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -266,6 +251,7 @@ create table if not exists public.daily_goals (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists daily_goals_set_updated_at on public.daily_goals;
 create trigger daily_goals_set_updated_at
   before update on public.daily_goals
   for each row execute function public.set_updated_at();
@@ -292,3 +278,26 @@ drop policy if exists "daily_goals_delete_own" on public.daily_goals;
 create policy "daily_goals_delete_own"
   on public.daily_goals for delete
   using (auth.uid() = user_id);
+
+-- =====================================================================
+-- Section 7 — Grants for the Supabase API roles + PostgREST reload
+-- =====================================================================
+
+grant usage on schema public to anon, authenticated, service_role;
+
+grant all on all tables in schema public
+  to anon, authenticated, service_role;
+grant all on all sequences in schema public
+  to anon, authenticated, service_role;
+grant all on all functions in schema public
+  to anon, authenticated, service_role;
+
+alter default privileges in schema public
+  grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all on functions to anon, authenticated, service_role;
+
+notify pgrst, 'reload schema';
+notify pgrst, 'reload config';
