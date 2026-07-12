@@ -90,6 +90,18 @@ export async function structuredCompletion<T extends z.ZodTypeAny>(
     throw new AiApiError(response.status, "Your OpenAI API key was rejected. Update it in Settings.");
   }
   if (response.status === 429) {
+    // OpenAI overloads 429 for both "no available credit" (billing) and
+    // real burst rate limits. Parse the body so we can tell the user
+    // precisely which one to fix.
+    const { code, message } = await parseOpenAiError(response);
+    if (code === "insufficient_quota") {
+      throw new AiApiError(
+        429,
+        message ??
+          "Your OpenAI account has no available credit. Add billing at platform.openai.com to enable AI logging.",
+        "insufficient_quota",
+      );
+    }
     throw new AiRateLimitError("provider");
   }
   if (!response.ok) {
@@ -147,9 +159,35 @@ export async function pingOpenAiKey(apiKey: string, timeoutMs = 8_000): Promise<
     throw new AiApiError(response.status, "That API key was rejected by OpenAI.");
   }
   if (response.status === 429) {
+    const { code, message } = await parseOpenAiError(response);
+    if (code === "insufficient_quota") {
+      throw new AiApiError(
+        429,
+        message ??
+          "Your OpenAI account has no available credit. Add billing at platform.openai.com to enable AI logging.",
+        "insufficient_quota",
+      );
+    }
     throw new AiRateLimitError("provider");
   }
   if (!response.ok) {
     throw new AiApiError(response.status, `OpenAI returned ${response.status}.`);
+  }
+}
+
+/** Extract the `error.code` / `error.message` from an OpenAI JSON error body. */
+async function parseOpenAiError(
+  response: Response,
+): Promise<{ code?: string; message?: string }> {
+  try {
+    const body = (await response.json()) as {
+      error?: { code?: string; type?: string; message?: string };
+    };
+    return {
+      code: body.error?.code ?? body.error?.type,
+      message: body.error?.message,
+    };
+  } catch {
+    return {};
   }
 }
