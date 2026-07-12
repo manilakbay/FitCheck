@@ -1,11 +1,11 @@
-import { Trash2 } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { deleteActivityAction } from "@/features/activity/actions";
 import { formatDayLabel } from "@/lib/dates";
 import { formatKcal, formatMinutes, formatNumber } from "@/lib/format";
-import type { ActivityEntry } from "@/types/models";
+import type { ActivityEntry, AiConfidence } from "@/types/models";
 
 const ACTIVITY_LABELS: Record<ActivityEntry["activity_type"], string> = {
   walking: "Walking",
@@ -21,6 +21,22 @@ const INTENSITY_LABELS: Record<ActivityEntry["intensity"], string> = {
   moderate: "Moderate",
   high: "High",
 };
+
+const CONFIDENCE_TONE: Record<AiConfidence, "accent" | "warn" | "danger"> = {
+  high: "accent",
+  medium: "warn",
+  low: "danger",
+};
+
+function AiSourceBadge({ confidence }: { confidence: AiConfidence | null }) {
+  const tone = confidence ? CONFIDENCE_TONE[confidence] : "brand";
+  const label = confidence ? `AI · ${confidence}` : "AI";
+  return (
+    <Badge tone={tone} className="gap-1" title="Estimated by AI">
+      <Sparkles className="h-3 w-3" aria-hidden /> {label}
+    </Badge>
+  );
+}
 
 export function ActivityEntryGroup({
   date,
@@ -55,6 +71,9 @@ export function ActivityEntryGroup({
                   {ACTIVITY_LABELS[entry.activity_type]}
                 </span>
                 <Badge tone="slate">{INTENSITY_LABELS[entry.intensity]}</Badge>
+                {entry.source === "ai" ? (
+                  <AiSourceBadge confidence={entry.ai_confidence} />
+                ) : null}
               </div>
               <div className="mt-1 text-xs text-slate-500">
                 {formatMinutes(entry.duration_min)}
