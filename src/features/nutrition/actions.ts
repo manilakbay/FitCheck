@@ -116,15 +116,18 @@ function humanizeAiError(err: unknown): string {
   if (err instanceof AiKeyMissingError) {
     return "Add your OpenAI API key on the Settings page to use AI logging.";
   }
-  if (err instanceof AiRateLimitError) {
-    return err.message;
-  }
   if (err instanceof AiApiError) {
+    if (err.code === "insufficient_quota") {
+      return "Your OpenAI account has no available credit. Add billing at platform.openai.com/account/billing to enable AI logging.";
+    }
     if (err.status === 401) return "OpenAI rejected your API key. Please update it in Settings.";
     if (err.status === 402) return "OpenAI account payment or quota issue. Check your OpenAI billing.";
     if (err.status === 429) return "OpenAI rate limit reached. Please try again shortly.";
     if (err.status >= 500) return "OpenAI is having trouble right now. Please try again in a moment.";
     return `AI request failed (${err.status}). Please try again.`;
+  }
+  if (err instanceof AiRateLimitError) {
+    return err.message;
   }
   if (err instanceof AiSchemaError) {
     return "The AI returned an unexpected response. Try rephrasing your description.";
