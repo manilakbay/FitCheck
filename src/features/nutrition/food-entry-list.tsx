@@ -1,11 +1,11 @@
-import { Trash2 } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { deleteFoodEntryAction } from "@/features/nutrition/actions";
 import { formatDayLabel } from "@/lib/dates";
 import { formatGrams, formatKcal, formatNumber } from "@/lib/format";
-import type { FoodEntry } from "@/types/models";
+import type { AiConfidence, FoodEntry } from "@/types/models";
 
 const MEAL_LABELS: Record<FoodEntry["meal_type"], string> = {
   breakfast: "Breakfast",
@@ -13,6 +13,22 @@ const MEAL_LABELS: Record<FoodEntry["meal_type"], string> = {
   dinner: "Dinner",
   snack: "Snack",
 };
+
+const CONFIDENCE_TONE: Record<AiConfidence, "accent" | "warn" | "danger"> = {
+  high: "accent",
+  medium: "warn",
+  low: "danger",
+};
+
+function AiSourceBadge({ confidence }: { confidence: AiConfidence | null }) {
+  const tone = confidence ? CONFIDENCE_TONE[confidence] : "brand";
+  const label = confidence ? `AI · ${confidence}` : "AI";
+  return (
+    <Badge tone={tone} className="gap-1" title="Estimated by AI">
+      <Sparkles className="h-3 w-3" aria-hidden /> {label}
+    </Badge>
+  );
+}
 
 export function FoodEntryGroup({
   date,
@@ -58,6 +74,9 @@ export function FoodEntryGroup({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-900">{entry.food_name}</span>
                 <Badge tone="slate">{MEAL_LABELS[entry.meal_type]}</Badge>
+                {entry.source === "ai" ? (
+                  <AiSourceBadge confidence={entry.ai_confidence} />
+                ) : null}
               </div>
               <div className="mt-1 text-xs text-slate-500">
                 {formatNumber(Number(entry.quantity), 2)} {entry.unit} ·{" "}

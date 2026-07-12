@@ -7,6 +7,7 @@ import {
   Footprints,
   Salad,
   Sandwich,
+  Sparkles,
   Utensils,
   Waves,
   Zap,
@@ -19,6 +20,18 @@ import { relativeDay } from "@/lib/dates";
 import { formatKcal, formatMinutes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ActivityEntry, FoodEntry } from "@/types/models";
+
+function AiDot({ title }: { title: string }) {
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-100 text-brand-700"
+    >
+      <Sparkles className="h-2.5 w-2.5" aria-hidden />
+    </span>
+  );
+}
 
 const MEAL_ICONS: Record<FoodEntry["meal_type"], { icon: LucideIcon; tone: string }> = {
   breakfast: { icon: Coffee, tone: "bg-amber-100 text-amber-700" },
@@ -89,8 +102,13 @@ export function RecentMeals({ entries }: { entries: FoodEntry[] }) {
                     <Icon className="h-4 w-4" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">
-                      {entry.food_name}
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-medium text-slate-900">
+                        {entry.food_name}
+                      </span>
+                      {entry.source === "ai" ? (
+                        <AiDot title="Estimated by AI" />
+                      ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-slate-500">
                       {MEAL_LABELS[entry.meal_type]} · {relativeDay(entry.entry_date)}
@@ -151,8 +169,13 @@ export function RecentActivities({ entries }: { entries: ActivityEntry[] }) {
                     <Icon className="h-4 w-4" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">
-                      {ACTIVITY_LABELS[entry.activity_type]}
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-medium text-slate-900">
+                        {ACTIVITY_LABELS[entry.activity_type]}
+                      </span>
+                      {entry.source === "ai" ? (
+                        <AiDot title="Estimated by AI" />
+                      ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-slate-500">
                       {relativeDay(entry.entry_date)} · {formatMinutes(entry.duration_min)}
